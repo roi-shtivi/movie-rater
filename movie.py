@@ -1,10 +1,11 @@
 class Movie:
-    def __init__(self, code, name, rate, votes):
+    def __init__(self, code, name, rate, votes, genres):
         self.code = code
         self.name = name
         self.rate = rate
         self.votes = votes
         self.dates = []
+        self.genres = genres
 
     def add_date(self, date):
         self.dates.append(date)

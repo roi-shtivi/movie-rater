@@ -19,10 +19,21 @@ cinema_codes = {"Ayalon": 1025,
 # expensive type of movies.
 macbook = {'3d', '4dx', 'hfr-3d', 'imax', 'screenx', 'vip'}
 
-poster_url = "https://www.yesplanet.co.il/il/data-api-service/v1/poster/10100/by-showing-type/SHOWING?lang=he_IL&ordering=desc"
-film_event_url = "https://www.yesplanet.co.il/il/data-api-service/v1/quickbook/10100/film-events/in-cinema/{}/at-date/{}?attr=&lang=he_IL"
+urls = {
+    'posters': "https://www.yesplanet.co.il/il/data-api-service/v1/poster/10100/by-showing-type/SHOWING?lang=he_IL&ordering=desc",
+    'events': "https://www.yesplanet.co.il/il/data-api-service/v1/quickbook/10100/film-events/in-cinema/{}/at-date/{}?attr=&lang=he_IL",
+    'dates': "https://www.yesplanet.co.il/il/data-api-service/v1/quickbook/10100/dates/in-cinema/{}/until/{}?attr=&lang=he_IL",
+    'attributes': "https://www.yesplanet.co.il/il/data-api-service/v1/quickbook/10100/attributes?jsonp&lang=he_IL"
+    }
 
 ia = imdb.IMDb()
+
+
+def json_response(url):
+    # Get the page
+    res = requests.get(url, verify=False)
+    # Load into json
+    return json.loads(res.text)
 
 
 def get_dates_url(cinema_code):
@@ -33,8 +44,7 @@ def get_dates_url(cinema_code):
     """
     now = datetime.now() + timedelta(days=365)
     formatted_date = now.strftime("%Y-%m-%d")
-    return "https://www.yesplanet.co.il/il/data-api-service/v1/quickbook/10100/dates/in-cinema/{}/until/{}?attr=&lang=he_IL". \
-        format(str(cinema_code), formatted_date)
+    return urls['dates'].format(str(cinema_code), formatted_date)
 
 
 def get_dates(cinema_code):
@@ -45,8 +55,7 @@ def get_dates(cinema_code):
     """
     dates = []
     dates_url = get_dates_url(cinema_code)
-    date_response = requests.get(dates_url, verify=False)
-    dates_json = json.loads(date_response.text)
+    dates_json = json_response(dates_url)
     for date in dates_json['body']['dates']:
         dates.append(date)
     return dates
@@ -75,29 +84,26 @@ def get_movies(cinema_name):
     cinema_code = cinema_codes[cinema_name]
     movies = {}
     uncatched = []
-    response = requests.get(poster_url, verify=False)
-    # Load into json
-    poster_json = json.loads(response.text)
+    genres = set(json_response(urls['attributes'])['body']['dropdownConfig']['genres'])
+    poster_json = json_response(urls['posters'])
     # Get the movies names
     for poster in poster_json['body']['posters']:
+        # remove the '/films/' prefix
         movie_name = poster['url'][7:].replace("-", " ")
         vote_details = get_vote_details(movie_name)
+        movie_genres = genres.intersection(set(poster['attributes']))
         if vote_details['rating'] is None or vote_details['votes'] is None:
             uncatched.append(movie_name)
             continue
         movies[poster['code']] = Movie(poster['code'], movie_name, vote_details['rating'],
-                                       vote_details['votes'])  # remove the '/films/' prefix
-
+                                       vote_details['votes'], movie_genres)
+    # add screening dates
     dates = get_dates(cinema_code)
     for day in dates:
-        # Get the page
-        response = requests.get(film_event_url.format(cinema_code, day), verify=False)
-        # Load into json
-        movies_json = json.loads(response.text)
+        movies_json = json_response(urls['events'].format(cinema_code, day))
         for event in movies_json['body']['events']:
             if not macbook.intersection(set(event['attributeIds'])):
                 movies[event['filmId']].add_date(event['eventDateTime'])
-
     return movies
 
 
