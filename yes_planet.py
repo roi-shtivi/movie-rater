@@ -103,7 +103,10 @@ def get_movies(cinema_name):
         movies_json = json_response(urls['events'].format(cinema_code, day))
         for event in movies_json['body']['events']:
             if not macbook.intersection(set(event['attributeIds'])):
-                movies[event['filmId']].add_date(event['eventDateTime'])
+                try:
+                    movies[event['filmId']].add_date(event['eventDateTime'])
+                except KeyError:
+                    continue
     return movies
 
 
