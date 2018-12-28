@@ -1,6 +1,7 @@
 import requests
 import json
 import imdb
+import Levenshtein
 from datetime import datetime
 from datetime import timedelta
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -66,13 +67,22 @@ def get_vote_details(movie_name):
     retrieve movie rating data from the Internet Movie Database (IMDB)
     :return: rating of the movie (0<=rating<=10) and the number of votes.
     """
+    current_year = datetime.now().year
     # filter movies only (no episodes)
-    s_result = [x for x in ia.search_movie(movie_name) if x.get('kind') == 'movie' and x.get('year') is not None]
+    s_result = [x for x in ia.search_movie(movie_name) if
+                x.get('kind') == 'movie' and
+                x.get('year') is not None and
+                x.get('year') <= current_year]
+    if not s_result:
+        return None
     # movie with the latest release date
-    maxi = max(s_result, key=lambda movie: movie.data['year'])
-    if maxi.get('rating') is None:
-        ia.update(maxi, ['main', 'vote details'])
-    return {'rating': maxi.get('rating'), 'votes': maxi.get('votes')}
+    minimum = min(s_result, key=lambda movie: (abs(movie.data['year'] - current_year), Levenshtein.distance(movie_name, movie.get('title'))))
+    if minimum.get('rating') is None:
+        ia.update(minimum, ['main', 'vote details'])
+    rating = {'rating': minimum.get('rating'), 'votes': minimum.get('votes')}
+    if rating['rating'] is None or rating['votes'] is None:
+        return None
+    return rating
 
 
 def get_movies(cinema_name):
@@ -92,7 +102,7 @@ def get_movies(cinema_name):
         movie_name = poster['url'][7:].replace("-", " ")
         vote_details = get_vote_details(movie_name)
         movie_genres = genres.intersection(set(poster['attributes']))
-        if vote_details['rating'] is None or vote_details['votes'] is None:
+        if vote_details is None:
             uncatched.append(movie_name)
             continue
         movies[poster['code']] = Movie(poster['code'], movie_name, vote_details['rating'],
@@ -112,4 +122,5 @@ def get_movies(cinema_name):
 
 if __name__ == '__main__':
     movies = get_movies("Rishon LeZion")
-    print(sorted(movies.values(), reverse=True))
+    for movie in sorted(movies.values(), reverse=True):
+        print(movie)
