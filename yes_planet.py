@@ -1,5 +1,6 @@
 import requests
 import json
+import re
 import imdb
 import Levenshtein
 from datetime import datetime
@@ -98,8 +99,12 @@ def get_movies(cinema_name):
     poster_json = json_response(urls['posters'])
     # Get the movies names
     for poster in poster_json['body']['posters']:
-        # remove the '/films/' prefix
-        movie_name = poster['url'][7:].replace("-", " ")
+        # extract movie name from poster's url
+        try:
+            movie_name = re.sub('-', ' ', re.search(r'films/([a-z\-]+)', poster['url']).group(1))
+        except [AttributeError, IndexError]:
+            print("could not find movie name of this url: {}".format(poster['url']))
+            continue
         vote_details = get_vote_details(movie_name)
         movie_genres = genres.intersection(set(poster['attributes']))
         if vote_details is None:
