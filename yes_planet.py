@@ -101,8 +101,8 @@ def get_movies(cinema_name):
     for poster in poster_json['body']['posters']:
         # extract movie name from poster's url
         try:
-            movie_name = re.sub('-', ' ', re.search(r'films/([a-z\-]+)', poster['url']).group(1))
-        except [AttributeError, IndexError]:
+            movie_name = re.sub('-', ' ', re.search(r'films/([a-z0-9\-]+)', poster['url']).group(1))
+        except (AttributeError, IndexError):
             print("could not find movie name of this url: {}".format(poster['url']))
             continue
         vote_details = get_vote_details(movie_name)
