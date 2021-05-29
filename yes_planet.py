@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import requests
 import json
 import re
@@ -102,6 +104,9 @@ def get_movies(cinema_name):
         # extract movie name from poster's url
         try:
             movie_name = re.sub('-', ' ', re.search(r'films/([a-z0-9\-]+)', poster['url']).group(1))
+            movie_name = re.sub('(.*)(\s*(green|purple))', '\g<1>', movie_name).strip()
+            if movie_name in {movie.name for movie in movies.values()}:
+                continue
         except (AttributeError, IndexError):
             print("could not find movie name of this url: {}".format(poster['url']))
             continue
@@ -110,8 +115,11 @@ def get_movies(cinema_name):
         if vote_details is None:
             uncatched.append(movie_name)
             continue
-        movies[poster['code']] = Movie(poster['code'], movie_name, vote_details['rating'],
-                                       vote_details['votes'], movie_genres)
+        movies[poster['code']] = Movie(poster['code'],
+                                       movie_name,
+                                       vote_details['rating'],
+                                       vote_details['votes'],
+                                       movie_genres)
     # add screening dates
     dates = get_dates(cinema_code)
     for day in dates:
