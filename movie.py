@@ -20,7 +20,7 @@ class Movie:
         return "{}: {}/10 ({})".format(self.name, self.rate, self.votes)
 
     def __eq__(self, other):
-        return self.rate == other.rank and self.votes == other.votes
+        return self.rate == other.rate and self.votes == other.votes
 
     def __lt__(self, other):
         return self.rate < other.rate
