@@ -1,10 +1,11 @@
 class Movie:
-    def __init__(self, code, name, rate, votes, genres):
+    def __init__(self, code, name, rate, votes, year, genres):
         self.code = code
         self.name = name
         self.rate = rate
         self.votes = votes
         self.dates = []
+        self.year = year
         self.genres = genres
 
     def add_date(self, date):
@@ -17,7 +18,7 @@ class Movie:
         self.votes = votes
 
     def __repr__(self):
-        return "{}: {}/10 ({})".format(self.name, self.rate, self.votes)
+        return f"{self.name} ({self.year}): {self.rate}/10 ({self.votes})"
 
     def __eq__(self, other):
         return self.rate == other.rate and self.votes == other.votes
