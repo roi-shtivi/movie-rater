@@ -3,7 +3,7 @@
 import requests
 import json
 import re
-import imdb
+from imdb import Cinemagoer
 from imdb._exceptions import IMDbParserError
 import Levenshtein
 from datetime import datetime
@@ -24,7 +24,7 @@ CINEMA_CODES = {"Ayalon": 1025,
 # Expensive type of movies.
 MACBOOK = {'3d', '4dx', 'hfr-3d', 'imax', 'screenx', 'vip'}
 
-PREFIX_URL = "https://www.yesplanet.co.il/il/data-api-service/v1"
+PREFIX_URL = "https://www.planetcinema.co.il/il/data-api-service/v1"
 
 URLS = {
     'posters': f"{PREFIX_URL}/poster/10100/by-showing-type/SHOWING?lang=he_IL&ordering=desc",
@@ -33,14 +33,21 @@ URLS = {
     'attributes': f"{PREFIX_URL}/quickbook/10100/attributes?jsonp&lang=he_IL"
     }
 
-ia = imdb.IMDb()
+ia = Cinemagoer()
 
 
 def json_response(url):
+    headers = {'User-Agent': 'Mozilla/5.0'}
+
+    session = requests.Session()
+
     # Get the page
-    res = requests.get(url, verify=False)
+    res = session.get(url, headers=headers)
     # Load into json
-    return json.loads(res.text)
+    try:
+        return json.loads(res.text)
+    except json.decoder.JSONDecodeError:
+        print(res)
 
 
 def get_dates_url(cinema_code):
@@ -84,6 +91,8 @@ def map_poster_to_matching_movie(movie_name):
                 abs(movie.data['year'] - current_year))
     current_year = datetime.now().year
     # Filter movies only (no episodes)
+
+    # Waiting for fix of https://github.com/cinemagoer/cinemagoer/issues/426
     s_result = [x for x in ia.search_movie(movie_name) if
                 x.get('kind') == 'movie' and
                 x.get('year') is not None and
@@ -126,7 +135,8 @@ def get_movies(cinema_name):
             movie_genres = genres.intersection(set(poster['attributes']))
             if selected_movie is None:
                 raise RuntimeError
-        except (IMDbParserError, RuntimeError):
+        except (IMDbParserError, RuntimeError) as e:
+            print(e)
             uncaught.append(movie_name)
             continue
         movies[poster['code']] = Movie(poster['code'],
