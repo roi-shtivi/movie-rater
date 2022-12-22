@@ -1,5 +1,5 @@
 class Movie:
-    def __init__(self, code, name, rate, votes, year, genres):
+    def __init__(self, code, name, rate, votes, year, genres, imdb_id=""):
         self.code = code
         self.name = name
         self.rate = rate
@@ -7,6 +7,7 @@ class Movie:
         self.dates = []
         self.year = year
         self.genres = genres
+        self.imdb_id = imdb_id
 
     def add_date(self, date):
         self.dates.append(date)
@@ -25,3 +26,10 @@ class Movie:
 
     def __lt__(self, other):
         return self.rate < other.rate
+
+    def __iter__(self):
+        yield str(self.name)
+        yield str(self.year)
+        yield str(self.rate)
+        yield str(self.votes)
+        yield str(self.imdb_id)

@@ -1,15 +1,31 @@
 #!/usr/bin/env python
+"""List Planet movies with IMDb rating.
+Usage:
+    planet.py [options]
 
+Options:
+    -h --help                     Show this message and exit.
+    -V --version                  Show version information and exit.
+    -v --verbose                  Show unnecessary extra information.
+    -c CINEMA --cinema=CINEMA     Cinema name (Ayalon/Haifa/Rishon LeZion/Jerusalem/Be'er Sheva/Zikhron Ya'akov)
+                                  [default: Rishon LeZion]
+    -ht PATH --html=PATH          Export .html file with the table
+    -lf PATH --log-file=PATH      Path of log file  [default: planet.log]
+"""
+
+from docopt import docopt
 import requests
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
 import json
 import re
+import logging
+import pandas as pd
 from imdb import Cinemagoer
 from imdb._exceptions import IMDbParserError
 import Levenshtein
-from datetime import datetime
-from datetime import timedelta
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from datetime import (datetime, timedelta)
 from movie import Movie
+
 
 # Ignore the insecure warning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -36,7 +52,30 @@ URLS = {
 ia = Cinemagoer()
 
 
+def get_logger(level=logging.INFO, log_file='planet.log'):
+    logger = logging.getLogger(__name__, )
+    logger.setLevel(level)
+    fh = logging.FileHandler(log_file)
+    fh.setLevel(level)
+    ch = logging.StreamHandler()
+    ch.setLevel(level)
+
+    formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(name)s : %(message)s')
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+
+    logger.addHandler(ch)
+    logger.addHandler(fh)
+
+    return logger
+
+
 def json_response(url):
+    """
+    Send a GET request to the `url`
+    :param url: The URL we wish to communicate with
+    :return: A JSON format response
+    """
     headers = {'User-Agent': 'Mozilla/5.0'}
 
     session = requests.Session()
@@ -47,14 +86,14 @@ def json_response(url):
     try:
         return json.loads(res.text)
     except json.decoder.JSONDecodeError:
-        print(res)
+        logger.error(res)
 
 
 def get_dates_url(cinema_code):
     """
-    generate url that request the available dates of filming in the desired cinema
+    Generate URL that request the available dates of filming in the desired cinema
     :param cinema_code: numeric code of the desired cinema
-    :return: url
+    :return: The crafted URL
     """
     now = datetime.now() + timedelta(days=365)
     formatted_date = now.strftime("%Y-%m-%d")
@@ -128,7 +167,7 @@ def get_movies(cinema_name):
             if movie_name in {movie.name for movie in movies.values()}:
                 continue
         except (AttributeError, IndexError):
-            print("could not find movie name of this url: {}".format(poster['url']))
+            logger.warning("could not find movie name of this url: {}".format(poster['url']))
             continue
         try:
             selected_movie = map_poster_to_matching_movie(movie_name)
@@ -136,7 +175,6 @@ def get_movies(cinema_name):
             if selected_movie is None:
                 raise RuntimeError
         except (IMDbParserError, RuntimeError) as e:
-            print(e)
             uncaught.append(movie_name)
             continue
         movies[poster['code']] = Movie(poster['code'],
@@ -144,7 +182,8 @@ def get_movies(cinema_name):
                                        selected_movie.get('rating'),
                                        selected_movie.get('votes'),
                                        selected_movie.get('year'),
-                                       movie_genres
+                                       movie_genres,
+                                       imdb_id=selected_movie.get('imdbID')
                                        )
     # Add screening dates
     dates = get_dates(cinema_code)
@@ -156,12 +195,31 @@ def get_movies(cinema_name):
                     movies[event['filmId']].add_date(event['eventDateTime'])
                 except KeyError:
                     continue
-    print(f"Could'nt find result(s) for movie(s): {uncaught}")
+    logger.warning(f"Couldn't find result(s) for movie(s): {uncaught}")
     return movies
 
 
 if __name__ == '__main__':
-    movies = get_movies("Rishon LeZion")
-    print("*** Movie score list: ***")
-    for movie in sorted(movies.values(), reverse=True):
-        print(movie)
+    # Grab the arguments
+    args = docopt(__doc__, version='0.1')
+    verbose = args['--verbose']
+    cinema = args['--cinema']
+    html = args['--html']
+    log_file = args['--log-file']
+
+    if verbose:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.ERROR
+    logger = get_logger(level=log_level, log_file=log_file)
+
+    movies = get_movies(cinema)
+
+    df = pd.DataFrame(data=sorted(movies.values(), reverse=True),
+                      columns=["Title", "Year", "Rating", "Votes", "IMDbID"],
+                      )
+    if html:
+        df.to_html(html, index=False, classes='table movies-table')
+
+    print(df.to_markdown())
+
