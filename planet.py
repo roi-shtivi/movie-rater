@@ -221,5 +221,13 @@ if __name__ == '__main__':
     if html:
         df.to_html(html, index=False, classes='table movies-table')
 
-    print(df.to_markdown())
+        with open('index.html', 'r') as f:
+            content = f.read()
 
+        execution_date = f"<h6>{datetime.now()}</h6>"
+        content = re.sub(r"<h6>.*</h6>", f"{execution_date}", content, re.M)
+
+        with open('index.html', 'w') as f:
+            f.write(content)
+
+    print(df.to_markdown())
