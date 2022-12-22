@@ -3,3 +3,4 @@ python_Levenshtein==0.12.0
 cinemagoer
 pandas
 docopt
+tabulate
