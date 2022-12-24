@@ -13,6 +13,7 @@ Options:
     -lf PATH --log-file=PATH      Path of log file  [default: planet.log]
 """
 
+import os.path
 from docopt import docopt
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -207,6 +208,8 @@ if __name__ == '__main__':
     html = args['--html']
     log_file = args['--log-file']
 
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
     if verbose:
         log_level = logging.DEBUG
     else:
@@ -221,13 +224,13 @@ if __name__ == '__main__':
     if html:
         df.to_html(html, index=False, classes='table movies-table')
 
-        with open('index.html', 'r') as f:
+        with open(os.path.join(ROOT_DIR, 'index.html'), 'r') as f:
             content = f.read()
 
-        execution_date = f"<h6>{datetime.now()}</h6>"
-        content = re.sub(r"<h6>.*</h6>", f"{execution_date}", content, re.M)
+        execution_date = f'<p id="execution-time">Executed at: {datetime.now()}</p>'
+        content = re.sub(r'<p id="execution-time">.*</p>', f"{execution_date}", content, re.M)
 
-        with open('index.html', 'w') as f:
+        with open(os.path.join(ROOT_DIR, 'index.html'), 'w') as f:
             f.write(content)
 
     print(df.to_markdown())
