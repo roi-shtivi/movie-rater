@@ -184,8 +184,9 @@ def get_movies(cinema_name):
                                        selected_movie.get('votes'),
                                        selected_movie.get('year'),
                                        movie_genres,
-                                       imdb_id=selected_movie.get('imdbID')
+                                       selected_movie.get('imdbID')
                                        )
+        break
     # Add screening dates
     dates = get_dates(cinema_code)
     for day in dates:
@@ -219,10 +220,11 @@ if __name__ == '__main__':
     movies = get_movies(cinema)
 
     df = pd.DataFrame(data=sorted(movies.values(), reverse=True),
-                      columns=["Title", "Year", "Rating", "Votes", "IMDbID"],
+                      columns=["Title", "Year", "Rating", "Votes", "IMDb URL"],
                       )
     if html:
-        df.to_html(html, index=False, classes='table movies-table')
+        df['IMDb URL'] = df['IMDb URL'].apply(lambda x: f'<a href="{x}">{x.split("/tt")[-1]}</a>')
+        df.to_html(html, index=False, classes='table movies-table', escape=False)
 
         with open(os.path.join(ROOT_DIR, 'index.html'), 'r') as f:
             content = f.read()
