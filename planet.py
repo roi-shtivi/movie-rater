@@ -231,15 +231,12 @@ if __name__ == '__main__':
                                "_imdb_url"],
                       )
     if html:
-        def _craft_imdb_html_hyperlink(url, title):
-            return f'<a href="{url}">{title}</a>'
+        def _craft_html_hyperlink(url, title):
+            return f'<a href="{url}" target="_blank">{title}</a>'
 
-        def _craft_planet_html_hyperlink(url, title):
-            return f'<a href="{url}">{title}</a>'
-
-        df['Title'] = df.apply(lambda x: _craft_imdb_html_hyperlink(x['_imdb_url'], x['Title']),
+        df['Title'] = df.apply(lambda x: _craft_html_hyperlink(x['_imdb_url'], x['Title']),
                                axis=1)
-        df['Feature Title'] = df.apply(lambda x: _craft_planet_html_hyperlink(x['_planet_url'], x['Feature Title']),
+        df['Feature Title'] = df.apply(lambda x: _craft_html_hyperlink(x['_planet_url'], x['Feature Title']),
                                        axis=1)
         # Drop irrelevant columns from the DF
         df = df.drop(['_planet_url', '_imdb_url'], axis=1)
