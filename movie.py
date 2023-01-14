@@ -1,5 +1,5 @@
 class Movie:
-    def __init__(self, code, name, rate, votes, year, genres, imdb_id=""):
+    def __init__(self, code, name, rate, votes, year, genres, imdb_id):
         self.code = code
         self.name = name
         self.rate = rate
@@ -8,6 +8,7 @@ class Movie:
         self.year = year
         self.genres = genres
         self.imdb_id = imdb_id
+        self.imdb_url = f"https://www.imdb.com/title/tt{self.imdb_id}"
 
     def add_date(self, date):
         self.dates.append(date)
@@ -32,4 +33,4 @@ class Movie:
         yield str(self.year)
         yield str(self.rate)
         yield str(self.votes)
-        yield str(self.imdb_id)
+        yield str(self.imdb_url)
