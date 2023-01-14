@@ -7,7 +7,7 @@ Options:
     -h --help                     Show this message and exit.
     -V --version                  Show version information and exit.
     -v --verbose                  Show unnecessary extra information.
-    -c CINEMA --cinema=CINEMA     Cinema name (Ayalon/Haifa/Rishon LeZion/Jerusalem/Be'er Sheva/Zikhron Ya'akov)
+    -c CINEMA --cinema=CINEMA     Cinema title (Ayalon/Haifa/Rishon LeZion/Jerusalem/Be'er Sheva/Zikhron Ya'akov)
                                   [default: Rishon LeZion]
     -ht PATH --html=PATH          Export .html file with the table
     -lf PATH --log-file=PATH      Path of log file  [default: planet.log]
@@ -61,7 +61,7 @@ def get_logger(level=logging.INFO, log_file='planet.log'):
     ch = logging.StreamHandler()
     ch.setLevel(level)
 
-    formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(name)s : %(message)s')
+    formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(title)s : %(message)s')
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
 
@@ -151,7 +151,7 @@ def map_poster_to_matching_movie(movie_name):
 def get_movies(cinema_name):
     """
     Collect all the available movies with their rating and dates
-    :param cinema_name: name of the desired cinema
+    :param cinema_name: title of the desired cinema
     :return: dictionary of movies where the key is the movie id and value is the Movie object.
     """
     cinema_code = CINEMA_CODES[cinema_name]
@@ -161,14 +161,14 @@ def get_movies(cinema_name):
     poster_json = json_response(URLS['posters'])
     # Get the movies names
     for poster in poster_json['body']['posters']:
-        # Extract movie name from poster's url
+        # Extract movie title from poster's url
         try:
             movie_name = re.sub('-', ' ', re.search(r'films/([a-z0-9\-]+)', poster['url']).group(1))
             movie_name = re.sub('(.*)(\s*(green|purple))', '\g<1>', movie_name).strip()
-            if movie_name in {movie.name for movie in movies.values()}:
+            if movie_name in {movie.title for movie in movies.values()}:
                 continue
         except (AttributeError, IndexError):
-            logger.warning("could not find movie name of this url: {}".format(poster['url']))
+            logger.warning("could not find movie title of this url: {}".format(poster['url']))
             continue
         try:
             selected_movie = map_poster_to_matching_movie(movie_name)
@@ -180,13 +180,14 @@ def get_movies(cinema_name):
             continue
         movies[poster['code']] = Movie(poster['code'],
                                        selected_movie.get('title'),
+                                       poster['featureTitle'],
                                        selected_movie.get('rating'),
                                        selected_movie.get('votes'),
                                        selected_movie.get('year'),
                                        movie_genres,
-                                       selected_movie.get('imdbID')
+                                       selected_movie.get('imdbID'),
+                                       poster['url']
                                        )
-        break
     # Add screening dates
     dates = get_dates(cinema_code)
     for day in dates:
@@ -220,10 +221,29 @@ if __name__ == '__main__':
     movies = get_movies(cinema)
 
     df = pd.DataFrame(data=sorted(movies.values(), reverse=True),
-                      columns=["Title", "Year", "Rating", "Votes", "IMDb URL"],
+                      columns=["Title",
+                               "Year",
+                               "Rating",
+                               "Votes",
+                               "Genre(s)",
+                               "Feature Title",
+                               "_planet_url",
+                               "_imdb_url"],
                       )
     if html:
-        df['IMDb URL'] = df['IMDb URL'].apply(lambda x: f'<a href="{x}">{x.split("/tt")[-1]}</a>')
+        def _craft_imdb_html_hyperlink(url, title):
+            return f'<a href="{url}">{title}</a>'
+
+        def _craft_planet_html_hyperlink(url, title):
+            return f'<a href="{url}">{title}</a>'
+
+        df['Title'] = df.apply(lambda x: _craft_imdb_html_hyperlink(x['_imdb_url'], x['Title']),
+                               axis=1)
+        df['Feature Title'] = df.apply(lambda x: _craft_planet_html_hyperlink(x['_planet_url'], x['Feature Title']),
+                                       axis=1)
+        # Drop irrelevant columns from the DF
+        df = df.drop(['_planet_url', '_imdb_url'], axis=1)
+        # Generate the HTML table
         df.to_html(html, index=False, classes='table movies-table', escape=False)
 
         with open(os.path.join(ROOT_DIR, 'index.html'), 'r') as f:
