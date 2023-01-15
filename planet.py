@@ -61,7 +61,7 @@ def get_logger(level=logging.INFO, log_file='planet.log'):
     ch = logging.StreamHandler()
     ch.setLevel(level)
 
-    formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(title)s : %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
 
@@ -115,34 +115,44 @@ def get_dates(cinema_code):
     return dates
 
 
-def map_poster_to_matching_movie(movie_name):
+def map_poster_to_matching_movie(movie_name, release_year):
     """
+    @param movie_name: The title name of the movie as it found in Planet database
+    @param release_year: The year the movie was first released to cinemas as it found in Planet database
     retrieve movie rating data from the Internet Movie Database (IMDB)
-    :return: rating of the movie (0<=rating<=10) and the number of votes.
+    @return: rating of the movie (0<=rating<=10) and the number of votes.
     """
     def _best_matching_movie(movie):
         """
         Define the numerical relevance score for the different IMDB movies that came in the search result
         when searching for `movie_name`.
-        :param movie: A IMDB movie object
+        :param movie: A IMDb movie object
         :return: A tuple representing the relevance score.
         """
-        return (Levenshtein.distance(movie_name, movie.get('title')),
-                abs(movie.data['year'] - current_year))
+        return (Levenshtein.distance(movie_name, movie.get('title').lower()),
+                (0 - movie.get('votes', 0)),
+                )
     current_year = datetime.now().year
     # Filter movies only (no episodes)
 
-    # Waiting for fix of https://github.com/cinemagoer/cinemagoer/issues/426
-    s_result = [x for x in ia.search_movie(movie_name) if
+    optional_movies = ia.search_movie(movie_name)
+    # Filter movies only (no episodes) with release years between IMDb and Planet which don't differ for more than 5
+    # without upcoming
+    s_result = [x for x in optional_movies if
                 x.get('kind') == 'movie' and
                 x.get('year') is not None and
-                x.get('year') <= current_year]
+                (abs(int(x.get('year')) - int(release_year)) <= 5) and
+                not (x.get('year') > current_year)]
     if not s_result:
         return None
+
+    # Update votes
+    for movie in s_result:
+        ia.update(movie, ['main', 'vote details'])
+
     # Movie with the latest release date
     best_match = min(s_result, key=_best_matching_movie)
-    if best_match.get('rating') is None:
-        ia.update(best_match, ['main', 'vote details'])
+
     if best_match.get('rating') is None or best_match.get('votes') is None:
         return None
     return best_match
@@ -168,14 +178,19 @@ def get_movies(cinema_name):
             if movie_name in {movie.title for movie in movies.values()}:
                 continue
         except (AttributeError, IndexError):
-            logger.warning("could not find movie title of this url: {}".format(poster['url']))
+            logger.warning("Could not find movie title of this url: {}".format(poster['url']))
             continue
         try:
-            selected_movie = map_poster_to_matching_movie(movie_name)
+            release_year = datetime.strptime(poster['dateStarted'].split('T')[0], "%Y-%m-%d").year
             movie_genres = genres.intersection(set(poster['attributes']))
+
+            # If no Poster genres found in Planet, it's probably a 'fake' movie
+            if not movie_genres:
+                raise RuntimeError
+            selected_movie = map_poster_to_matching_movie(movie_name, release_year)
             if selected_movie is None:
                 raise RuntimeError
-        except (IMDbParserError, RuntimeError) as e:
+        except (IMDbParserError, RuntimeError):
             uncaught.append(movie_name)
             continue
         movies[poster['code']] = Movie(poster['code'],
@@ -199,7 +214,7 @@ def get_movies(cinema_name):
                 except KeyError:
                     continue
     logger.warning(f"Couldn't find result(s) for movie(s): {uncaught}")
-    return movies
+    return movies, uncaught
 
 
 if __name__ == '__main__':
@@ -218,7 +233,7 @@ if __name__ == '__main__':
         log_level = logging.ERROR
     logger = get_logger(level=log_level, log_file=log_file)
 
-    movies = get_movies(cinema)
+    movies, uncaught = get_movies(cinema)
 
     df = pd.DataFrame(data=sorted(movies.values(), reverse=True),
                       columns=["Title",
@@ -246,8 +261,11 @@ if __name__ == '__main__':
         with open(os.path.join(ROOT_DIR, 'index.html'), 'r') as f:
             content = f.read()
 
-        execution_date = f'<p id="execution-time">Executed at: {datetime.now()}</p>'
-        content = re.sub(r'<p id="execution-time">.*</p>', f"{execution_date}", content, re.M)
+        uncaught_message = f'<p id="uncaught">Could not find result(s) for movie(s): {uncaught}</p>'
+        content = re.sub(r'<p id="uncaught">.*</p>', f"{uncaught_message}", content, re.M)
+
+        execution_date_message = f'<p id="execution-time">Executed at: {datetime.now()}</p>'
+        content = re.sub(r'<p id="execution-time">.*</p>', f"{execution_date_message}", content, re.M)
 
         with open(os.path.join(ROOT_DIR, 'index.html'), 'w') as f:
             f.write(content)
